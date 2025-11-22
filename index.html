@@ -1,10 +1,10 @@
-<!-- Author: Oseni Ridwan, Email: olainmotion@gmail.com -->
+<!-- Author: Oseni Ridwan, Email: oddbrushstudio@gmail.com -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Geophysical Data Plotter (Modular)</title>
+    <title>GeoViz: Geophysical Profile Analyzer</title>
 
     <!-- External CSS Link -->
     <link rel="stylesheet" href="styles.css">
@@ -12,6 +12,7 @@
     <!-- External Libraries (Chart.js for plotting, PapaParse for CSV, Annotation for plugins) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <!-- Note: Plugin registration is handled safely in script.js -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -46,21 +47,26 @@
                             <option value="dipole">Dipole-Dipole Array</option>
                         </select>
                     </div>
+                    
+                    <div class="select-group plot-control">
+                        <label for="resistivityColorTheme">Plot Color Theme (Line Colors):</label>
+                        <select id="resistivityColorTheme" onchange="plotData()">
+                            <!-- Options populated by JavaScript -->
+                        </select>
+                    </div>
                 </div>
 
                 <!-- VLF OPTIONS -->
                  <div id="vlfOptions" class="option-group">
                     <h3>VLF Visualization Tools</h3>
-                    <div class="color-options-grid">
-                        <div class="color-group">
-                            <label for="inPhaseColor">In-Phase Line Color</label>
-                            <input type="color" id="inPhaseColor" value="#0ea5e9" onchange="plotData()">
-                        </div>
-                        <div class="color-group">
-                            <label for="quadratureColor">Quadrature Line Color</label>
-                            <input type="color" id="quadratureColor" value="#f97316" onchange="plotData()">
-                        </div>
+                    
+                    <div class="select-group plot-control">
+                        <label for="vlfColorTheme">Plot Color Theme (In-Phase / Quadrature):</label>
+                        <select id="vlfColorTheme" onchange="plotData()">
+                            <!-- Options populated by JavaScript -->
+                        </select>
                     </div>
+
                     <div class="checkbox-container">
                         <input type="checkbox" id="karousHjeltToggle" onchange="plotData()">
                         <label for="karousHjeltToggle">Show Karous-Hjelt Filter (Derivative)</label>
