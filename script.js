@@ -1,215 +1,324 @@
-/* 
+/*
+ * GeoViz Logic v2.0
  * Author: Oseni Ridwan | oddbrushstudio@gmail.com
  */
 
+// --- Configuration ---
 let chart = null;
-let currentDataType = 'vlf';
-let khPluginActive = false;
+let currentMode = 'vlf';
+let chartPluginActive = false;
 
-// --- Curated Combo Themes ---
-const VLF_COMBOS = [
-    { name: "Ocean (Blue & Orange)", colors: ['#0284c7', '#f97316'] },
-    { name: "Nature (Green & Yellow)", colors: ['#059669', '#eab308'] },
-    { name: "Classic (Blue & Red)", colors: ['#2563eb', '#dc2626'] },
-    { name: "Cyber (Purple & Pink)", colors: ['#9333ea', '#db2777'] }
-];
-
-const RES_COMBOS = [
-    { name: "Forest (Greens)", colors: ['#064e3b', '#059669', '#34d399', '#a7f3d0'] },
-    { name: "Twilight (Blues/Purples)", colors: ['#1e3a8a', '#3b82f6', '#8b5cf6', '#d8b4fe'] },
-    { name: "Volcano (Reds/Oranges)", colors: ['#7f1d1d', '#ef4444', '#f97316', '#fdba74'] }
-];
-
-// --- Plugin Registration Fix ---
-try {
-    // In Chart.js 3 via CDN, the annotation plugin usually defines global "ChartAnnotation"
-    if (typeof ChartAnnotation !== 'undefined') {
-        Chart.register(ChartAnnotation);
-        khPluginActive = true;
-    } else if (window['chartjs-plugin-annotation']) {
-        Chart.register(window['chartjs-plugin-annotation']);
-        khPluginActive = true;
-    }
-} catch (e) {
-    console.error("KH Plugin Error:", e);
-}
-
-window.onload = () => {
-    initThemes();
-    setDataType('vlf');
+const THEMES = {
+    vlf: [
+        { name: "Ocean (Blue/Orange)", colors: ['#0ea5e9', '#f97316'] }, // Blue, Orange
+        { name: "Forest (Green/Gold)", colors: ['#10b981', '#eab308'] }, // Emerald, Yellow
+        { name: "Sunset (Purple/Red)", colors: ['#8b5cf6', '#ef4444'] }  // Violet, Red
+    ],
+    res: [
+        { name: "Scientific (Rainbow)", colors: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'] },
+        { name: "Cool (Blues)", colors: ['#082f49', '#0369a1', '#0ea5e9', '#38bdf8', '#7dd3fc'] },
+        { name: "Warm (Reds)", colors: ['#450a0a', '#991b1b', '#dc2626', '#f87171', '#fca5a5'] }
+    ]
 };
 
-function initThemes() {
+// --- Initialization ---
+window.onload = () => {
+    initUI();
+    checkPlugins();
+};
+
+function initUI() {
+    // Populate Themes
     const vSelect = document.getElementById('vlfTheme');
-    VLF_COMBOS.forEach((c, i) => vSelect.options.add(new Option(c.name, i)));
+    THEMES.vlf.forEach((t, i) => vSelect.add(new Option(t.name, i)));
     
     const rSelect = document.getElementById('resTheme');
-    RES_COMBOS.forEach((c, i) => rSelect.options.add(new Option(c.name, i)));
+    THEMES.res.forEach((t, i) => rSelect.add(new Option(t.name, i)));
+
+    document.getElementById('fileUpload').addEventListener('change', handleFile);
+    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
 }
 
-function toggleDarkMode() {
-    document.body.classList.toggle('dark-mode');
-    if (chart) plotData();
+function checkPlugins() {
+    // Safe check for chart annotation plugin
+    try {
+        if (window['chartjs-plugin-annotation']) {
+            Chart.register(window['chartjs-plugin-annotation']);
+            chartPluginActive = true;
+        }
+    } catch (e) { console.warn("Annotation plugin missing"); }
 }
 
-function setDataType(type) {
-    currentDataType = type;
-    document.getElementById('btnResistivity').classList.toggle('active', type === 'resistivity');
-    document.getElementById('btnVLF').classList.toggle('active', type === 'vlf');
-    document.getElementById('resistivityOptions').style.display = type === 'resistivity' ? 'block' : 'none';
-    document.getElementById('vlfOptions').style.display = type === 'vlf' ? 'block' : 'none';
+// --- Mode Switching ---
+function setMode(mode) {
+    currentMode = mode;
     
-    const info = document.getElementById('infoBox');
-    info.innerHTML = type === 'vlf' 
-        ? "Paste 3 columns: <strong>Station, InPhase, Quadrature</strong>" 
-        : "Paste 7 columns: <strong>P1, P2, P3, P4, K, R, ρa</strong> (ρa is optional)";
+    // Toggle UI States
+    document.getElementById('btnVLF').classList.toggle('active', mode === 'vlf');
+    document.getElementById('btnRes').classList.toggle('active', mode === 'resistivity');
+    document.getElementById('vlfOptions').style.display = mode === 'vlf' ? 'block' : 'none';
+    document.getElementById('resOptions').style.display = mode === 'resistivity' ? 'block' : 'none';
+    
+    // Update Hints
+    const hint = document.getElementById('formatHint');
+    hint.textContent = mode === 'vlf' ? 'Station, InPhase, Quad' : 'P1, P2, P3, P4, K, R, ρa';
+    
     clearAll(true);
 }
 
-// Gradient Utility
-function getGradient(ctx, chartArea, color1, color2) {
-    if (!chartArea) return color1;
-    const grad = ctx.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
-    grad.addColorStop(0, color1);
-    grad.addColorStop(1, color2 || color1);
-    return grad;
+// --- Data Parsing ---
+function parseData(input) {
+    const lines = input.trim().split('\n');
+    const cleanLines = lines.map(l => l.trim().split(/[\t, ]+/).map(Number)).filter(row => row.length > 1 && !row.some(isNaN));
+    return cleanLines;
 }
 
-function plotData() {
-    const input = document.getElementById('dataInput').value.trim();
-    if (!input) return;
+// --- Plotting Logic ---
+function updatePlot() {
+    const input = document.getElementById('dataInput').value;
+    if (!input.trim()) return;
 
     if (chart) chart.destroy();
-    document.getElementById('chartPlaceholder').style.display = 'none';
-    const canvas = document.getElementById('resistivityChart');
-    canvas.style.display = 'block';
+    
+    document.getElementById('chartContainer').querySelector('.empty-state').style.display = 'none';
+    const canvas = document.getElementById('mainChart');
     const ctx = canvas.getContext('2d');
 
-    if (currentDataType === 'vlf') {
-        renderVLF(ctx, input);
-    } else {
-        renderRes(ctx, input);
+    const rawData = parseData(input);
+    if(rawData.length === 0) {
+        alert("Invalid data format. Please check your inputs.");
+        return;
     }
-    document.getElementById('downloadBtn').disabled = false;
+
+    if (currentMode === 'vlf') {
+        plotVLF(ctx, rawData);
+    } else {
+        plotResistivity(ctx, rawData);
+    }
+    
+    document.getElementById('dlBtn').disabled = false;
 }
 
-function renderVLF(ctx, input) {
-    const lines = input.split('\n').filter(l => l.trim() && !isNaN(parseFloat(l[0])));
-    const data = lines.map(l => {
-        const p = l.split(/[\t, ]+/).map(parseFloat);
-        return { x: p[0], ip: p[1], q: p[2] };
-    }).sort((a,b) => a.x - b.x);
-
-    const theme = VLF_COMBOS[document.getElementById('vlfTheme').value];
+function plotVLF(ctx, data) {
+    // Sort by Station (Column 0)
+    data.sort((a,b) => a[0] - b[0]);
+    
+    const themeIdx = document.getElementById('vlfTheme').value;
+    const colors = THEMES.vlf[themeIdx].colors;
     const showKH = document.getElementById('khToggle').checked;
 
     const datasets = [
         {
             label: 'In-Phase (%)',
-            data: data.map(d => ({x: d.x, y: d.ip})),
-            borderColor: (c) => getGradient(ctx, c.chart.chartArea, theme.colors[0], '#fff'),
-            borderWidth: 3, tension: 0.3, yAxisID: 'y'
+            data: data.map(d => ({x: d[0], y: d[1]})),
+            borderColor: colors[0],
+            backgroundColor: colors[0] + '10', // Transparent fill
+            borderWidth: 2.5,
+            tension: 0.3,
+            yAxisID: 'y'
         },
         {
             label: 'Quadrature (%)',
-            data: data.map(d => ({x: d.x, y: d.q})),
-            borderColor: (c) => getGradient(ctx, c.chart.chartArea, theme.colors[1], '#fff'),
-            borderWidth: 3, tension: 0.3, yAxisID: 'y'
+            data: data.map(d => ({x: d[0], y: d[2]})),
+            borderColor: colors[1],
+            backgroundColor: colors[1] + '10',
+            borderWidth: 2.5,
+            tension: 0.3,
+            yAxisID: 'y'
         }
     ];
 
-    const options = baseOptions('Station (m)', 'Amplitude (%)');
+    const options = getChartOptions('Station (m)', 'Amplitude (%)');
 
-    if (showKH && khPluginActive) {
-        const kh = [];
+    // KH Filter Calculation (Derivative)
+    if (showKH && chartPluginActive) {
+        const khData = [];
         for(let i=0; i<data.length-1; i++) {
-            kh.push({ x: (data[i].x + data[i+1].x)/2, y: (data[i+1].ip - data[i].ip)/(data[i+1].x - data[i].x) });
+            const xMid = (data[i][0] + data[i+1][0]) / 2;
+            const dy = data[i+1][1] - data[i][1]; // Change in InPhase
+            const dx = data[i+1][0] - data[i][0];
+            if(dx !== 0) khData.push({x: xMid, y: dy/dx});
         }
+        
         datasets.push({
             label: 'KH Filter',
-            data: kh,
-            borderColor: '#8b5cf6',
+            data: khData,
+            borderColor: '#64748b',
             borderDash: [5, 5],
-            yAxisID: 'yKH',
-            pointRadius: 0
+            borderWidth: 1.5,
+            pointRadius: 0,
+            yAxisID: 'yKH'
         });
-        options.scales.yKH = { position: 'right', title: { display: true, text: 'Filter Value' }, grid: { drawOnChartArea: false } };
+        
+        options.scales.yKH = { position: 'right', grid: {drawOnChartArea: false}, title: {display:true, text:'Filter'} };
     }
 
     chart = new Chart(ctx, { type: 'line', data: { datasets }, options });
-    updateStats(`Points: ${data.length}`, `IP Max: ${Math.max(...data.map(d=>d.ip))}%`);
+    renderStats({ 'Points': data.length, 'Max Amp': Math.max(...data.map(d=>d[1])) + '%' });
 }
 
-function renderRes(ctx, input) {
-    const lines = input.split('\n').filter(l => l.trim() && !isNaN(parseFloat(l[0])));
-    const theme = RES_COMBOS[document.getElementById('resTheme').value];
+function plotResistivity(ctx, data) {
+    // Columns: P1, P2, P3, P4, K, R, Rho(optional)
+    const arrayType = document.getElementById('arrayType').value;
+    const themeIdx = document.getElementById('resTheme').value;
+    const palette = THEMES.res[themeIdx].colors;
+
+    // Group by Spacing 'a' (Column 1 - Column 0)
+    const groups = {};
     
-    const parsed = lines.map(l => {
-        const p = l.split(/[\t, ]+/).map(parseFloat);
-        const rho = isNaN(p[6]) ? p[4] * p[5] : p[6];
-        return { x: (p[0] + p[3])/2, y: rho, a: Math.abs(p[1]-p[0]) };
+    data.forEach(row => {
+        // Calculate Spacing 'a'
+        const a = Math.abs(row[1] - row[0]);
+        // Calculate Rho if missing
+        let rho = row[6];
+        if (isNaN(rho)) {
+            // Basic K calc if not provided (fallback)
+            const k = row[4] !== 0 ? row[4] : (arrayType === 'wenner' ? 2 * Math.PI * a : 1);
+            rho = k * row[5]; 
+        }
+        
+        // Midpoint calculation (Standard Center)
+        const midpoint = (row[0] + row[3]) / 2; 
+        
+        const key = a.toFixed(1);
+        if(!groups[key]) groups[key] = [];
+        groups[key].push({ x: midpoint, y: rho });
     });
 
-    const spacings = [...new Set(parsed.map(d => d.a))].sort((a,b) => a-b);
-    const datasets = spacings.map((a, i) => {
-        const color = theme.colors[i % theme.colors.length];
-        return {
-            label: `Depth a=${a}m`,
-            data: parsed.filter(d => d.a === a).sort((a,b) => a.x - b.x),
-            borderColor: (c) => getGradient(ctx, c.chart.chartArea, color, '#000'),
-            borderWidth: 2, tension: 0.2
-        };
+    const datasets = [];
+    let colorIdx = 0;
+    
+    // Create dataset for each spacing level
+    Object.keys(groups).sort((a,b)=>parseFloat(a)-parseFloat(b)).forEach(spacing => {
+        const points = groups[spacing].sort((a,b) => a.x - b.x);
+        const color = palette[colorIdx % palette.length];
+        
+        datasets.push({
+            label: `Spacing a=${spacing}m`,
+            data: points,
+            borderColor: color,
+            backgroundColor: color,
+            showLine: true,
+            borderWidth: 2,
+            pointRadius: 4,
+            tension: 0.2
+        });
+        colorIdx++;
     });
 
-    const options = baseOptions('Midpoint (m)', 'Apparent Resistivity (Ωm)');
-    options.scales.y.type = 'logarithmic';
+    const options = getChartOptions('Profile Midpoint (m)', 'Apparent Resistivity (Ωm)');
+    options.scales.y.type = 'logarithmic'; // Essential for resistivity
 
-    chart = new Chart(ctx, { type: 'line', data: { datasets }, options });
-    updateStats(`Levels: ${spacings.length}`, `Total Points: ${parsed.length}`);
+    chart = new Chart(ctx, { type: 'scatter', data: { datasets }, options });
+    renderStats({ 'Layers': Object.keys(groups).length, 'Total Pts': data.length });
 }
 
-function baseOptions(xLab, yLab) {
+// --- Helpers ---
+function getChartOptions(xLabel, yLabel) {
     const isDark = document.body.classList.contains('dark-mode');
-    const color = isDark ? '#94a3b8' : '#64748b';
+    const color = isDark ? '#94a3b8' : '#1e293b';
+    const gridColor = isDark ? '#334155' : '#e2e8f0';
+    
+    // Get Custom Title
+    let titleText = document.getElementById('customTitle').value;
+    if(!titleText) titleText = currentMode === 'vlf' ? "VLF In-Phase vs Quadrature" : "Resistivity Pseudosection Profile";
+
     return {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { labels: { color } } },
+        plugins: {
+            title: { display: true, text: titleText, color: color, font: {size: 16, family: 'Poppins'} },
+            legend: { labels: { color: color } }
+        },
         scales: {
-            x: { type: 'linear', title: { display: true, text: xLab, color }, ticks: { color }, grid: { color: isDark ? '#334155' : '#e2e8f0' } },
-            y: { title: { display: true, text: yLab, color }, ticks: { color }, grid: { color: isDark ? '#334155' : '#e2e8f0' } }
+            x: { 
+                type: 'linear', 
+                title: { display: true, text: xLabel, color: color }, 
+                ticks: { color: color },
+                grid: { color: gridColor } 
+            },
+            y: { 
+                title: { display: true, text: yLabel, color: color }, 
+                ticks: { color: color },
+                grid: { color: gridColor } 
+            }
         }
     };
 }
 
-function updateStats(s1, s2) {
-    document.getElementById('statsSection').style.display = 'block';
-    document.getElementById('statsContainer').innerHTML = `
-        <div class="stat-card"><h4>Metric A</h4><p>${s1}</p></div>
-        <div class="stat-card"><h4>Metric B</h4><p>${s2}</p></div>
-    `;
-}
-
-function clearAll(keepInput = false) {
-    if (!keepInput) document.getElementById('dataInput').value = '';
-    if (chart) chart.destroy();
-    document.getElementById('chartPlaceholder').style.display = 'flex';
-    document.getElementById('resistivityChart').style.display = 'none';
-    document.getElementById('statsSection').style.display = 'none';
-}
-
-function loadSampleData() {
-    if (currentDataType === 'vlf') {
-        document.getElementById('dataInput').value = "0,45,-10\n10,55,-12\n20,40,-15\n30,10,-10\n40,-20,5\n50,-30,12\n60,-10,8";
+function loadRobustSample() {
+    const dataInput = document.getElementById('dataInput');
+    if (currentMode === 'vlf') {
+        // Robust VLF Data (Crossover Anomaly)
+        let csv = "";
+        for(let x=0; x<=100; x+=5) {
+            // Simulated crossover at x=50
+            const ip = 40 * Math.sin((x-50)/20) + (Math.random()*2);
+            const quad = 20 * Math.cos((x-50)/20);
+            csv += `${x}\t${ip.toFixed(1)}\t${quad.toFixed(1)}\n`;
+        }
+        dataInput.value = csv;
     } else {
-        document.getElementById('dataInput').value = "0,10,20,30,62.8,10,628\n10,20,30,40,62.8,12,753\n0,20,40,60,125.6,5,628";
+        // Robust Resistivity (Wenner, 3 levels)
+        let csv = "";
+        // Level 1: a=10
+        for(let x=0; x<=100; x+=10) {
+            // P1, P2, P3, P4, K, R
+            csv += `${x}\t${x+10}\t${x+20}\t${x+30}\t62.8\t${(10 + Math.random()).toFixed(1)}\n`;
+        }
+        // Level 2: a=20
+        for(let x=0; x<=80; x+=10) {
+            csv += `${x}\t${x+20}\t${x+40}\t${x+60}\t125.6\t${(5 + Math.random()).toFixed(1)}\n`;
+        }
+        dataInput.value = csv;
     }
-    plotData();
+    updatePlot();
+}
+
+function renderStats(metrics) {
+    const container = document.getElementById('statsBar');
+    container.innerHTML = '';
+    container.style.display = 'grid';
+    
+    for (const [key, value] of Object.entries(metrics)) {
+        const div = document.createElement('div');
+        div.className = 'stat-item';
+        div.innerHTML = `<div class="stat-label">${key}</div><div class="stat-val">${value}</div>`;
+        container.appendChild(div);
+    }
+}
+
+function handleFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    Papa.parse(file, {
+        complete: (res) => {
+            document.getElementById('dataInput').value = res.data.map(row => row.join('\t')).join('\n');
+            updatePlot();
+        }
+    });
+}
+
+function toggleTheme() {
+    document.body.classList.toggle('dark-mode');
+    if(chart) updatePlot(); // Redraw chart to match new theme colors
+}
+
+function clearAll(keepInput) {
+    if(!keepInput) document.getElementById('dataInput').value = '';
+    if(chart) {
+        chart.destroy();
+        chart = null;
+    }
+    document.getElementById('chartContainer').querySelector('.empty-state').style.display = 'flex';
+    document.getElementById('statsBar').style.display = 'none';
+    document.getElementById('dlBtn').disabled = true;
 }
 
 function downloadChart() {
+    if(!chart) return;
     const link = document.createElement('a');
-    link.download = `geoviz_${currentDataType}.${document.getElementById('formatSelect').value}`;
+    link.download = `geoviz_chart.${document.getElementById('formatSelect').value}`;
     link.href = chart.toBase64Image();
     link.click();
 }
