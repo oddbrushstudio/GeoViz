@@ -1,5 +1,4 @@
-/*
- * GeoViz Logic - Fixed Karous-Hjelt Plugin Load & Combo Themes
+/* 
  * Author: Oseni Ridwan | oddbrushstudio@gmail.com
  */
 
