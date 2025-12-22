@@ -1,104 +1,127 @@
-<!-- Author: Oseni Ridwan, Email: oddbrushstudio@gmail.com -->
+<!-- Author: Oseni Ridwan | Email: oddbrushstudio@gmail.com -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GeoViz: Geophysical Profile Analyzer</title>
+    <title>GeoViz | Geophysical Analysis</title>
 
+    <!-- Styles -->
     <link rel="stylesheet" href="styles.css">
+
+    <!-- Fonts: Poppins for headings, Inter for UI -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
 
     <!-- Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-    <!-- Annotation Plugin for K-H axis handling -->
+    <!-- Annotation Plugin -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0/dist/chartjs-plugin-annotation.min.js"></script>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-    <div class="app-container">
-        <aside class="control-panel">
-            <div class="header">
+    <div class="app-layout">
+        <!-- Sidebar Controls -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="logo-icon">🌍</div>
                 <h1>GeoViz</h1>
-                <p>Profile Visualization & Analysis</p>
-                <div class="dark-mode-toggle" id="themeToggle" title="Toggle Dark Mode">🌙</div>
+            </div>
+            
+            <p class="subtitle">Simple Geophysical Plotter</p>
+
+            <!-- Mode Selector -->
+            <div class="mode-toggle">
+                <button id="btnVLF" class="mode-btn active" onclick="setMode('vlf')">📡 VLF Survey</button>
+                <button id="btnRes" class="mode-btn" onclick="setMode('resistivity')">⚡ Resistivity</button>
             </div>
 
-            <div class="input-section">
-                <div class="data-type-selector">
-                    <button class="data-type-btn" id="btnResistivity" onclick="setDataType('resistivity')">⚡ Resistivity</button>
-                    <button class="data-type-btn active" id="btnVLF" onclick="setDataType('vlf')">📡 VLF</button>
-                </div>
-
-                <!-- RESISTIVITY OPTIONS -->
-                <div id="resistivityOptions" class="option-group" style="display: none;">
-                    <div class="select-group">
-                        <label>Array Configuration:</label>
-                        <select id="arrayType" onchange="plotData();">
-                            <option value="wenner">Wenner Array</option>
-                            <option value="schlumberger">Schlumberger Array</option>
-                            <option value="dipole">Dipole-Dipole Array</option>
-                        </select>
-                    </div>
-                    <div class="select-group">
-                        <label>Color Palette (Gradients):</label>
-                        <select id="resTheme" onchange="plotData()"></select>
-                    </div>
-                </div>
-
-                <!-- VLF OPTIONS -->
-                 <div id="vlfOptions" class="option-group">
-                    <div class="select-group">
-                        <label>Color Combination:</label>
-                        <select id="vlfTheme" onchange="plotData()"></select>
-                    </div>
-                    <div class="checkbox-container">
-                        <input type="checkbox" id="khToggle" onchange="plotData()" checked>
+            <!-- Configuration Card -->
+            <div class="config-card">
+                <!-- Dynamic Options Area -->
+                <div id="vlfOptions" class="options-group">
+                    <label>Color Theme</label>
+                    <select id="vlfTheme" class="modern-select" onchange="updatePlot()">
+                        <!-- Populated by JS -->
+                    </select>
+                    
+                    <div class="toggle-row">
+                        <input type="checkbox" id="khToggle" checked onchange="updatePlot()">
                         <label for="khToggle">Apply Karous-Hjelt Filter</label>
                     </div>
                 </div>
 
-                <div class="info-box" id="infoBox"></div>
-
-                <textarea id="dataInput" placeholder="Paste data..."></textarea>
-
-                <div class="button-grid">
-                    <button class="btn" onclick="loadSampleData()">🧪 Sample</button>
-                    <button class="btn" onclick="clearAll()">🗑️ Clear</button>
-                    <button class="btn btn-full" id="plotBtn" onclick="plotData()">📈 Update Chart</button>
-                </div>
-
-                <div class="download-options">
-                    <select id="formatSelect">
-                        <option value="png">PNG Image</option>
-                        <option value="jpeg">JPG Image</option>
+                <div id="resOptions" class="options-group" style="display:none;">
+                    <label>Array Type</label>
+                    <select id="arrayType" class="modern-select" onchange="updatePlot()">
+                        <option value="wenner">Wenner (Equal Spacing)</option>
+                        <option value="schlumberger">Schlumberger</option>
+                        <option value="dipole">Dipole-Dipole</option>
                     </select>
-                    <button class="btn" id="downloadBtn" onclick="downloadChart()" disabled>📥 Export</button>
+
+                    <label style="margin-top:10px;">Color Palette</label>
+                    <select id="resTheme" class="modern-select" onchange="updatePlot()">
+                        <!-- Populated by JS -->
+                    </select>
                 </div>
+
+                <hr class="divider">
+
+                <label>Chart Title (Optional)</label>
+                <input type="text" id="customTitle" class="modern-input" placeholder="e.g. Line 1 Profile" oninput="updatePlot()">
+            </div>
+
+            <!-- Data Input Area -->
+            <div class="data-card">
+                <div class="data-header">
+                    <label>Input Data</label>
+                    <span id="formatHint" class="badge">Station, InPhase, Quad</span>
+                </div>
+                <textarea id="dataInput" class="code-editor" placeholder="Paste your data here..."></textarea>
+                
+                <div class="action-row">
+                    <button class="text-btn" onclick="document.getElementById('fileUpload').click()">📂 Upload File</button>
+                    <input type="file" id="fileUpload" hidden accept=".csv,.txt">
+                    <button class="text-btn" onclick="loadRobustSample()">🧪 Load Sample</button>
+                </div>
+            </div>
+
+            <!-- Primary Action -->
+            <button class="primary-btn" onclick="updatePlot()">
+                Load Chart 🚀
+            </button>
+            
+            <button class="secondary-btn" id="dlBtn" onclick="downloadChart()" disabled>
+                📥 Download Image
+            </button>
+
+            <div class="footer-link">
+                <span id="themeToggle" class="theme-icon">🌙 Dark Mode</span>
             </div>
         </aside>
 
-        <main class="main-content">
-            <div id="statsSection" style="display: none">
-                <div class="stats" id="statsContainer"></div>
-            </div>
-
-            <div class="chart-area" id="chartArea">
-                <div id="chartPlaceholder">
-                    <div class="icon">📈</div>
-                    <h3>Waiting for Data</h3>
-                    <p>Load sample data to see the visualization in action.</p>
+        <!-- Main Visualization Area -->
+        <main class="main-view">
+            <div id="chartContainer" class="chart-wrapper">
+                <div id="emptyState" class="empty-state">
+                    <div class="empty-icon">📊</div>
+                    <h3>Ready to Visualize</h3>
+                    <p>Paste your data or click "Load Sample" to begin.</p>
                 </div>
-                <canvas id="resistivityChart" style="display: none;"></canvas>
+                <canvas id="mainChart"></canvas>
+            </div>
+            
+            <!-- Statistics Bar -->
+            <div id="statsBar" class="stats-bar" style="display:none;">
+                <!-- Populated by JS -->
             </div>
         </main>
     </div>
 
     <script src="script.js"></script>
-
 </body>
 </html>
+
+
