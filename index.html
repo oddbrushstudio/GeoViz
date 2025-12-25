@@ -1,125 +1,123 @@
-<!-- Author: Oseni Ridwan | Email: oddbrushstudio@gmail.com -->
+<!-- Author: Oseni Ridwan, Email: oddbrushstudio@gmail.com -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GeoViz | Geophysical Analysis</title>
+    <title>Geophysical Data Plotter</title>
 
-    <!-- Styles -->
+    <!-- External CSS Link -->
     <link rel="stylesheet" href="styles.css">
 
-    <!-- Fonts: Poppins for headings, Inter for UI -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
-
-    <!-- Libraries -->
+    <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <!-- Annotation Plugin -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.4.0/dist/chartjs-plugin-annotation.min.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
 
-    <div class="app-layout">
-        <!-- Sidebar Controls -->
-        <aside class="sidebar">
-            <div class="brand">
-                <div class="logo-icon">🌍</div>
-                <h1>GeoViz</h1>
-            </div>
-            
-            <p class="subtitle">Simple Geophysical Plotter</p>
-
-            <!-- Mode Selector -->
-            <div class="mode-toggle">
-                <button id="btnVLF" class="mode-btn active" onclick="setMode('vlf')">📡 VLF Survey</button>
-                <button id="btnRes" class="mode-btn" onclick="setMode('resistivity')">⚡ Resistivity</button>
+    <div class="app-container">
+        <aside class="control-panel">
+            <div class="header">
+                <h1>Geophysical Plotter</h1>
+                <p>VLF & Resistivity Visualizer</p>
+                <div class="dark-mode-toggle" id="themeToggle" title="Toggle Dark Mode">🌙</div>
             </div>
 
-            <!-- Configuration Card -->
-            <div class="config-card">
-                <!-- Dynamic Options Area -->
-                <div id="vlfOptions" class="options-group">
-                    <label>Color Theme</label>
-                    <select id="vlfTheme" class="modern-select" onchange="updatePlot()">
-                        <!-- Populated by JS -->
-                    </select>
+            <div class="input-section">
+                <h2>📊 Data Type</h2>
+                <div class="data-type-selector">
+                    <button class="data-type-btn" id="btnResistivity" onclick="setDataType('resistivity')">⚡ Resistivity</button>
+                    <button class="data-type-btn active" id="btnVLF" onclick="setDataType('vlf')">📡 VLF</button>
+                </div>
+
+                <!-- RESISTIVITY OPTIONS -->
+                <div id="resistivityOptions" class="option-group" style="display: none;">
+                    <div class="select-group">
+                        <label for="arrayType">Resistivity Array Type:</label>
+                        <select id="arrayType" onchange="clearAll(true); plotData();">
+                            <option value="wenner">Wenner</option>
+                            <option value="schlumberger">Schlumberger</option>
+                            <option value="dipole">Dipole-Dipole</option>
+                        </select>
+                    </div>
                     
-                    <div class="toggle-row">
-                        <input type="checkbox" id="khToggle" checked onchange="updatePlot()">
-                        <label for="khToggle">Apply Karous-Hjelt Filter</label>
+                    <div class="select-group">
+                        <label for="resistivityColorTheme">Color Theme:</label>
+                        <select id="resistivityColorTheme" onchange="plotData()">
+                            <!-- Populated by JS -->
+                        </select>
                     </div>
                 </div>
 
-                <div id="resOptions" class="options-group" style="display:none;">
-                    <label>Array Type</label>
-                    <select id="arrayType" class="modern-select" onchange="updatePlot()">
-                        <option value="wenner">Wenner (Equal Spacing)</option>
-                        <option value="schlumberger">Schlumberger</option>
-                        <option value="dipole">Dipole-Dipole</option>
+                <!-- VLF OPTIONS -->
+                 <div id="vlfOptions" class="option-group">
+                    <div class="select-group">
+                        <label for="vlfColorTheme">Color Theme:</label>
+                        <select id="vlfColorTheme" onchange="plotData()">
+                            <!-- Populated by JS -->
+                        </select>
+                    </div>
+
+                    <div class="checkbox-container">
+                        <input type="checkbox" id="karousHjeltToggle" onchange="plotData()">
+                        <label for="karousHjeltToggle">Show Karous-Hjelt Filter</label>
+                    </div>
+                </div>
+
+                <h2>📝 Input Data</h2>
+                <div class="info-box" id="infoBox">
+                    <!-- Dynamic content -->
+                </div>
+
+                <textarea id="dataInput" placeholder="Paste your data here..."></textarea>
+
+                <div class="file-upload" onclick="document.getElementById('fileInput').click()">
+                    <p>📁 Click to upload a CSV or TXT file</p>
+                    <input type="file" id="fileInput" accept=".csv,.txt" style="display:none;" />
+                </div>
+
+                <div class="button-grid">
+                    <button class="btn" onclick="loadSampleData()">🧪 Load Sample</button>
+                    <button class="btn" onclick="clearAll()">🗑️ Clear</button>
+                    <button class="btn btn-full" id="plotBtn" onclick="plotData()">📈 Generate Plot</button>
+                </div>
+
+                <div class="download-options">
+                    <select id="formatSelect">
+                        <option value="png">PNG</option>
+                        <option value="jpeg">JPG</option>
                     </select>
-
-                    <label style="margin-top:10px;">Color Palette</label>
-                    <select id="resTheme" class="modern-select" onchange="updatePlot()">
-                        <!-- Populated by JS -->
-                    </select>
+                    <button class="btn" id="downloadBtn" onclick="downloadChart()" disabled>📥 Download</button>
                 </div>
-
-                <hr class="divider">
-
-                <label>Chart Title (Optional)</label>
-                <input type="text" id="customTitle" class="modern-input" placeholder="e.g. Line 1 Profile" oninput="updatePlot()">
-            </div>
-
-            <!-- Data Input Area -->
-            <div class="data-card">
-                <div class="data-header">
-                    <label>Input Data</label>
-                    <span id="formatHint" class="badge">Station, InPhase, Quad</span>
-                </div>
-                <textarea id="dataInput" class="code-editor" placeholder="Paste your data here..."></textarea>
-                
-                <div class="action-row">
-                    <button class="text-btn" onclick="document.getElementById('fileUpload').click()">📂 Upload File</button>
-                    <input type="file" id="fileUpload" hidden accept=".csv,.txt">
-                    <button class="text-btn" onclick="loadRobustSample()">🧪 Load Sample</button>
-                </div>
-            </div>
-
-            <!-- Primary Action -->
-            <button class="primary-btn" onclick="updatePlot()">
-                Load Chart 🚀
-            </button>
-            
-            <button class="secondary-btn" id="dlBtn" onclick="downloadChart()" disabled>
-                📥 Download Image
-            </button>
-
-            <div class="footer-link">
-                <span id="themeToggle" class="theme-icon">🌙 Dark Mode</span>
             </div>
         </aside>
 
-        <!-- Main Visualization Area -->
-        <main class="main-view">
-            <div id="chartContainer" class="chart-wrapper">
-                <div id="emptyState" class="empty-state">
-                    <div class="empty-icon">📊</div>
-                    <h3>Ready to Visualize</h3>
-                    <p>Paste your data or click "Load Sample" to begin.</p>
-                </div>
-                <canvas id="mainChart"></canvas>
+        <main class="main-content">
+            <div id="statsSection" style="display: none">
+                <div class="stats" id="statsContainer"></div>
             </div>
-            
-            <!-- Statistics Bar -->
-            <div id="statsBar" class="stats-bar" style="display:none;">
-                <!-- Populated by JS -->
+
+            <div class="chart-area" id="chartArea">
+                <div id="chartPlaceholder">
+                    <div class="icon">📊</div>
+                    <h3>Your Chart Will Appear Here</h3>
+                    <p>Input data and click "Generate Plot" to start.</p>
+                </div>
+                <canvas id="resistivityChart" style="display: none;"></canvas>
             </div>
         </main>
     </div>
 
+    <!-- External JavaScript Link -->
     <script src="script.js"></script>
+
 </body>
 </html>
+
+
